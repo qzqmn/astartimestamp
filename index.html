@@ -1,0 +1,1762 @@
+ 
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>相片時間水印批量處理工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft JhengHei", "Heiti TC", "PingFang TC", sans-serif;
+            transition: all 0.25s ease;
+        }
+
+        body {
+            padding: 25px 15px;
+            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 28px;
+            text-align: center;
+            letter-spacing: 1px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .language-switcher {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .lang-btn {
+            padding: 6px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            color: #475569;
+        }
+
+        .lang-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1500px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .upload-area {
+            border: 2px dashed #3b82f6;
+            border-radius: 16px;
+            padding: 50px 20px;
+            text-align: center;
+            background: #ffffff;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            background: #eff6ff;
+            border-color: #2563eb;
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .upload-area p {
+            font-size: 16px;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .control-panel {
+            background: #ffffff;
+            padding: 24px;
+            border-radius: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            align-items: end;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            color: #334155;
+            font-weight: 600;
+            padding-left: 2px;
+        }
+
+        input, select {
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            background: #fafafa;
+        }
+
+        input:focus, select:focus {
+            border-color: #3b82f6;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        button {
+            padding: 10px 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: #10b981;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .batch-btns {
+            display: flex;
+            gap: 18px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .batch-btns button {
+            padding: 12px 30px;
+            font-size: 15px;
+            min-width: 180px;
+        }
+
+        .preview-wrapper {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 12px;
+        }
+
+        .img-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            position: relative;
+        }
+
+        .img-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .img-card canvas {
+            width: 100%;
+            border-radius: 12px;
+            object-fit: contain;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            cursor: zoom-in;
+        }
+
+        .card-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-group button {
+            flex: 1;
+            font-size: 13px;
+            padding: 8px 10px;
+        }
+
+        .del-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #ef4444;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            box-shadow: 0 2px 6px rgba(239,68,68,0.3);
+            z-index: 2;
+        }
+
+        .del-btn:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+
+        #fontColor {
+            height: 38px;
+            cursor: pointer;
+        }
+
+        input[type="range"] {
+            height: 8px;
+            cursor: pointer;
+        }
+
+        /* 全屏预览遮罩 */
+        .fullscreen-preview {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            cursor: zoom-out;
+        }
+
+        .fullscreen-preview img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        /* 進度條 */
+        #processingProgress {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 10000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .progress-bar {
+            width: 100%;
+            max-width: 500px;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        #progressText {
+            font-size: 14px;
+            color: #475569;
+            margin-top: 5px;
+        }
+
+        /* 統計面板 */
+        #statsPanel {
+            background: white;
+            border-radius: 12px;
+            padding: 15px 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin: 15px 0;
+            justify-content: center;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 100px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        /* 時間資訊 */
+        .time-info {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 5px;
+        }
+
+        .exif-time {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        /* 排序按鈕區域 */
+        .sort-btns {
+            display: flex;
+            gap: 12px;
+            margin-top: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .sort-btns button {
+            padding: 10px 20px;
+            min-width: 140px;
+        }
+
+        /* EXIF 選項整合 */
+        .time-source-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .time-source-select {
+            margin-bottom: 8px;
+        }
+        
+        .custom-time-input {
+            display: block;
+        }
+        
+        .exif-note {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* 性能提示 */
+        .performance-tip {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 10px 0;
+            font-size: 13px;
+            color: #0369a1;
+        }
+
+        /* 優化介面元素 */
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin: 20px 0 10px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
+        }
+        
+        .time-badge {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .exif-badge {
+            background: #dcfce7;
+            color: #166534;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .form-hint {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        /* 手機版優化 */
+        @media (max-width: 768px) {
+            .page-title {
+                font-size: 22px;
+            }
+            
+            .language-switcher {
+                position: relative;
+                top: 0;
+                right: 0;
+                margin-bottom: 15px;
+                justify-content: center;
+            }
+            
+            .control-panel {
+                grid-template-columns: 1fr;
+                padding: 20px 16px;
+            }
+            
+            .preview-wrapper {
+                grid-template-columns: 1fr;
+            }
+            
+            .batch-btns {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .batch-btns button {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            .sort-btns {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .sort-btns button {
+                width: 100%;
+                max-width: 300px;
+            }
+            
+            #statsPanel {
+                flex-direction: column;
+                gap: 10px;
+                align-items: center;
+            }
+            
+            .stat-item {
+                min-width: 80px;
+            }
+            
+            .section-title {
+                font-size: 16px;
+                margin: 15px 0 8px 0;
+            }
+        }
+
+        /* 平板優化 */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .preview-wrapper {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .control-panel {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* 動畫減少模式 */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                transition: none !important;
+                animation: none !important;
+            }
+            
+            button:hover {
+                transform: none;
+            }
+            
+            .img-card:hover {
+                transform: none;
+            }
+            
+            .progress-fill {
+                transition: none;
+            }
+        }
+
+        /* 可訪問性：跳過連結 */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 10px;
+            background: #3b82f6;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            text-decoration: none;
+            z-index: 10001;
+        }
+        
+        .skip-link:focus {
+            top: 10px;
+        }
+        
+        /* 新版面設計 */
+        .main-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .controls-section {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .time-source-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .time-source-option.active {
+            background: #eff6ff;
+            border-color: #3b82f6;
+        }
+        
+        .time-source-option input {
+            margin: 0;
+        }
+        
+        .time-source-option label {
+            flex: 1;
+            margin: 0;
+            cursor: pointer;
+        }
+    
+        /* Auth Overlay */
+        .auth-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999;
+        }
+        .auth-overlay.hidden { display: none; }
+        .auth-box {
+            background: white; padding: 40px; border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            width: 100%; max-width: 400px; text-align: center;
+        }
+        .auth-box h2 { margin-bottom: 24px; color: #2d3748; font-size: 24px; }
+        .auth-box input {
+            width: 100%; padding: 12px 16px; margin-bottom: 12px;
+            border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px;
+            box-sizing: border-box;
+        }
+        .auth-box button {
+            width: 100%; padding: 12px; background: #3b82f6; color: white;
+            border: none; border-radius: 8px; font-size: 16px;
+            cursor: pointer; margin-bottom: 8px;
+        }
+        .auth-box button:hover { background: #2563eb; }
+        .auth-box button.secondary { background: #64748b; }
+        .auth-box button.secondary:hover { background: #475569; }
+        .auth-divider { margin: 16px 0; color: #94a3b8; font-size: 14px; }
+        .auth-error {
+            color: #ef4444; font-size: 14px; margin-top: 8px; display: none;
+        }
+        .auth-box p { margin-top: 16px; font-size: 14px; color: #64748b; }
+        .user-info {
+            position: absolute; top: 15px; right: 80px;
+            font-size: 13px; color: #64748b; display: none;
+        }
+        .logout-btn {
+            position: absolute; top: 15px; right: 15px;
+            padding: 6px 12px; background: #ef4444; color: white;
+            border: none; border-radius: 6px; font-size: 12px; cursor: pointer; display: none;
+        }
+        .logout-btn:hover { background: #dc2626; }
+
+    </style>
+</head>
+<body>
+
+    <div class="auth-overlay" id="auth-overlay">
+        <div class="auth-box">
+            <h2>🔐 相片時間水印工具</h2>
+            <div id="auth-login-form">
+                <input type="email" id="auth-email" placeholder="電子郵件" required>
+                <input type="password" id="auth-password" placeholder="密碼" required>
+                <button onclick="authLogin()">登入</button>
+                <button class="secondary" onclick="authSignup()">註冊</button>
+                <div class="auth-divider">或</div>
+                <button onclick="authGoogleLogin()" style="background:#4285f4;">用 Google 登入</button>
+            </div>
+            <div id="auth-loading" style="display:none;"><p>載入中...</p></div>
+            <div class="auth-error" id="auth-error"></div>
+            <p>首次使用請先註冊帳戶</p>
+        </div>
+    </div>
+    <div class="user-info" id="user-info"></div>
+    <button class="logout-btn" id="logout-btn" onclick="authLogout()">登出</button>
+
+    <!-- 可訪問性跳過連結 -->
+    <a href="#main-content" class="skip-link">跳至主要內容</a>
+    
+    <!-- 語言切換器 -->
+    <div class="language-switcher">
+        <button class="lang-btn active" data-lang="zh-TW">繁體中文</button>
+        <button class="lang-btn" data-lang="en">English</button>
+    </div>
+
+    <h1 class="page-title" data-i18n="title">相片時間水印批量處理工具 </h1>
+    
+    <div class="container" style="display:none;" id="main-content">
+        <!-- 進度條 -->
+        <div id="processingProgress">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <div id="progressText" data-i18n="processing">處理中...</div>
+        </div>
+
+        <!-- 統計面板 -->
+        <div id="statsPanel">
+            <div class="stat-item">
+                <div class="stat-value" id="imageCount">0</div>
+                <div class="stat-label" data-i18n="images">圖片數</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="processedCount">0</div>
+                <div class="stat-label" data-i18n="processed">已處理</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="estimatedTime">0s</div>
+                <div class="stat-label" data-i18n="estimatedTime">估計時間</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalSize">0MB</div>
+                <div class="stat-label" data-i18n="totalSize">總大小</div>
+            </div>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <p data-i18n="uploadHint">點擊 / 拖拽相片至此上傳（支持多圖批量）</p>
+            <input type="file" id="fileInput" accept="image/*" multiple>
+        </div>
+
+        <!-- 性能提示 -->
+        <div class="performance-tip" data-i18n="performanceTip">
+            💡 提示：使用批次處理技術，避免瀏覽器卡頓。處理大量圖片時建議分批上傳。
+        </div>
+
+        <div class="main-controls">
+            <!-- 時間與格式設定 -->
+            <div class="controls-section">
+                <h3 class="section-title" data-i18n="timeSettings">時間與格式設定</h3>
+                <div class="controls-grid">
+                    <div class="form-group">
+                        <label data-i18n="timeSource">時間來源</label>
+                        <div class="time-source-group">
+                            <div class="time-source-option active" id="exifOption">
+                                <input type="radio" id="useExif" name="timeSource" value="exif" checked>
+                                <label for="useExif" data-i18n="useExifTime">使用EXIF拍攝時間</label>
+                            </div>
+                            <div class="time-source-option" id="customOption">
+                                <input type="radio" id="useCustom" name="timeSource" value="custom">
+                                <label for="useCustom" data-i18n="useCustomTime">使用自訂時間</label>
+                            </div>
+                        </div>
+                        <div id="customTimeContainer" style="display:none; margin-top:10px;">
+                            <input type="datetime-local" id="globalDateTime" class="custom-time-input">
+                            <div class="form-hint" data-i18n="customTimeHint">此時間將套用到所有圖片</div>
+                        </div>
+                        <div class="exif-note" id="exifNote" data-i18n="exifNote">上傳圖片時會自動讀取EXIF中的拍攝時間</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label data-i18n="timeFormat">時間格式</label>
+                        <select id="timeFormat">
+                            <option value="YYYY-MM-DD HH:mm:ss">YYYY-MM-DD HH:mm:ss</option>
+                            <option value="DD/MM/YYYY HH:mm">DD/MM/YYYY HH:mm</option>
+                            <option value="DD-MM-YYYY">DD-MM-YYYY</option>
+                            <option value="YYYY年MM月DD日">YYYY年MM月DD日</option>
+                            <option value="HH:mm:ss">HH:mm:ss</option>
+                        </select>
+                        <div class="form-hint" data-i18n="timeFormatHint">選擇水印顯示的時間格式</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 水印樣式設定 -->
+            <div class="controls-section">
+                <h3 class="section-title" data-i18n="watermarkStyle">水印樣式設定</h3>
+                <div class="controls-grid">
+                    <div class="form-group">
+                        <label data-i18n="font">字體</label>
+                        <select id="fontFamily">
+                            <option value="Microsoft JhengHei">微軟正黑體</option>
+                            <option value="Arial">Arial</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Heiti TC">黑體-繁</option>
+                            <option value="PingFang TC">蘋方體</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label data-i18n="fontStyle">字型樣式</label>
+                        <select id="fontStyle">
+                            <option value="normal">一般</option>
+                            <option value="italic">斜體</option>
+                            <option value="bold">粗體</option>
+                            <option value="bold italic">粗斜體</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label data-i18n="fontSize">基準字體大小(px)</label>
+                        <input type="number" id="fontSize" value="32" min="10" max="100">
+                        <div class="form-hint" data-i18n="fontSizeHint">字體大小會根據照片解析度自動調整</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label data-i18n="textColor">文字顏色</label>
+                        <select id="fontColorPreset">
+                            <option value="#ffffff">白色</option>
+                            <option value="#000000">黑色</option>
+                            <option value="#ff9800" selected>橙色</option>
+                            <option value="#ff0000">紅色</option>
+                            <option value="#ffff00">黃色</option>
+                            <option value="#00ff00">綠色</option>
+                            <option value="#00ff00">藍色</option>
+                            <option value="custom">自訂色盤</option>
+                        </select>
+                        <input type="color" id="fontColor" value="#ff9800" style="margin-top:5px;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label data-i18n="opacity">透明度</label>
+                        <input type="range" min="0.1" max="1" step="0.1" value="0.9" id="textOpacity">
+                        <div class="form-hint" id="opacityValue">90%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作按鈕區域 -->
+        <div class="action-buttons">
+            <button id="applyGlobal" class="btn-primary" data-i18n="applyGlobal">套用設定至全部圖片</button>
+            <button id="sortAsc" class="btn-secondary" data-i18n="sortAsc">升序排序</button>
+            <button id="sortDesc" class="btn-secondary" data-i18n="sortDesc">降序排序</button>
+            <button id="batchDownload" class="btn-success" data-i18n="batchDownload">批量下載ZIP</button>
+            <button id="clearAll" class="btn-danger" data-i18n="clearAll">清空全部</button>
+        </div>
+
+        <div class="preview-wrapper" id="previewWrapper"></div>
+    </div>
+
+    <!-- 全屏预览层 -->
+    <div class="fullscreen-preview" id="fullPreview">
+        <img id="fullImg" src="">
+    </div>
+
+    <script>
+        // 多語言字典
+        const translations = {
+            'zh-TW': {
+                title: '相片時間水印批量處理工具',
+                uploadHint: '點擊 / 拖拽相片至此上傳（支持多圖批量）',
+                processing: '處理中...',
+                images: '圖片數',
+                processed: '已處理',
+                estimatedTime: '估計時間',
+                totalSize: '總大小',
+                timeSettings: '時間與格式設定',
+                timeSource: '時間來源',
+                useExifTime: '使用EXIF拍攝時間',
+                useCustomTime: '使用自訂時間',
+                customTimeHint: '此時間將套用到所有圖片',
+                exifNote: '上傳圖片時會自動讀取EXIF中的拍攝時間',
+                timeFormat: '時間格式',
+                timeFormatHint: '選擇水印顯示的時間格式',
+                watermarkStyle: '水印樣式設定',
+                font: '字體',
+                fontStyle: '字型樣式',
+                fontSize: '基準字體大小(px)',
+                fontSizeHint: '字體大小會根據照片解析度自動調整',
+                textColor: '文字顏色',
+                opacity: '透明度',
+                applyGlobal: '套用設定至全部圖片',
+                sortAsc: '升序排序',
+                sortDesc: '降序排序',
+                batchDownload: '批量下載ZIP',
+                clearAll: '清空全部',
+                performanceTip: '💡 提示：使用批次處理技術，避免瀏覽器卡頓。處理大量圖片時建議分批上傳。',
+                noExifData: '無EXIF數據',
+                originalExifTime: '原始EXIF時間',
+                confirmDelete: '確定刪除這張圖片?',
+                confirmClear: '確定清空所有圖片？',
+                noImages: '請先上傳圖片',
+                sortConfirm: '下載時會按圖片時間順序命名文件。\n\n如果要按特定順序，請先使用排序功能。\n\n點擊"確定"開始打包下載。',
+                sortedAsc: '已按時間升序排序 (最早→最晚)',
+                sortedDesc: '已按時間降序排序 (最晚→最早)',
+                localDateTime: '此圖時間設定',
+                applyToThisImage: '套用此圖時間',
+                downloadThisImage: '下載此圖',
+                dateLabel: '日期時間',
+                usingExif: '使用EXIF時間',
+                usingCustom: '使用自訂時間',
+                timeSourceLabel: '時間來源'
+            },
+            'en': {
+                title: 'Batch Photo Timestamp Watermark Tool',
+                uploadHint: 'Click / Drag photos here to upload (Supports batch)',
+                processing: 'Processing...',
+                images: 'Images',
+                processed: 'Processed',
+                estimatedTime: 'Estimated Time',
+                totalSize: 'Total Size',
+                timeSettings: 'Time & Format Settings',
+                timeSource: 'Time Source',
+                useExifTime: 'Use EXIF Capture Time',
+                useCustomTime: 'Use Custom Time',
+                customTimeHint: 'This time will be applied to all images',
+                exifNote: 'EXIF capture time will be automatically read when uploading',
+                timeFormat: 'Time Format',
+                timeFormatHint: 'Select time format for watermark',
+                watermarkStyle: 'Watermark Style Settings',
+                font: 'Font',
+                fontStyle: 'Font Style',
+                fontSize: 'Base Font Size(px)',
+                fontSizeHint: 'Font size automatically adjusts based on image resolution',
+                textColor: 'Text Color',
+                opacity: 'Opacity',
+                applyGlobal: 'Apply Settings to All Images',
+                sortAsc: 'Sort Ascending',
+                sortDesc: 'Sort Descending',
+                batchDownload: 'Batch Download ZIP',
+                clearAll: 'Clear All',
+                performanceTip: '💡 Tip: Using batch processing to prevent browser lag. For large batches, upload in smaller groups.',
+                noExifData: 'No EXIF Data',
+                originalExifTime: 'Original EXIF Time',
+                confirmDelete: 'Confirm delete this image?',
+                confirmClear: 'Confirm clear all images?',
+                noImages: 'Please upload images first',
+                sortConfirm: 'Files will be named in time order when downloading.\n\nUse sorting function for specific order.\n\nClick "OK" to start packing.',
+                sortedAsc: 'Sorted in ascending order (Earliest→Latest)',
+                sortedDesc: 'Sorted in descending order (Latest→Earliest)',
+                localDateTime: 'Local Date Time',
+                applyToThisImage: 'Apply to this image',
+                downloadThisImage: 'Download this image',
+                dateLabel: 'Date Time',
+                usingExif: 'Using EXIF Time',
+                usingCustom: 'Using Custom Time',
+                timeSourceLabel: 'Time Source'
+            }
+        };
+
+        // 全局變數
+        const imageStore = [];
+        let zip = new JSZip();
+        let currentLanguage = 'zh-TW';
+        let timeSource = 'exif'; // 預設使用EXIF時間
+
+        // DOM元素
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewWrapper = document.getElementById('previewWrapper');
+        const globalDateTime = document.getElementById('globalDateTime');
+        const timeFormatSelect = document.getElementById('timeFormat');
+        const fontFamilySelect = document.getElementById('fontFamily');
+        const fontStyleSelect = document.getElementById('fontStyle');
+        const fontSizeInput = document.getElementById('fontSize');
+        const fontColorInput = document.getElementById('fontColor');
+        const fontColorPreset = document.getElementById('fontColorPreset');
+        const textOpacityInput = document.getElementById('textOpacity');
+        const applyGlobalBtn = document.getElementById('applyGlobal');
+        const batchDownloadBtn = document.getElementById('batchDownload');
+        const clearAllBtn = document.getElementById('clearAll');
+        const sortAscBtn = document.getElementById('sortAsc');
+        const sortDescBtn = document.getElementById('sortDesc');
+        const fullPreview = document.getElementById('fullPreview');
+        const fullImg = document.getElementById('fullImg');
+        const processingProgress = document.getElementById('processingProgress');
+        const progressFill = document.querySelector('.progress-fill');
+        const progressText = document.getElementById('progressText');
+        const imageCountEl = document.getElementById('imageCount');
+        const processedCountEl = document.getElementById('processedCount');
+        const estimatedTimeEl = document.getElementById('estimatedTime');
+        const totalSizeEl = document.getElementById('totalSize');
+        const langButtons = document.querySelectorAll('.lang-btn');
+        const exifOption = document.getElementById('exifOption');
+        const customOption = document.getElementById('customOption');
+        const customTimeContainer = document.getElementById('customTimeContainer');
+        const exifNote = document.getElementById('exifNote');
+        const opacityValue = document.getElementById('opacityValue');
+        const useExifRadio = document.getElementById('useExif');
+        const useCustomRadio = document.getElementById('useCustom');
+
+        // 初始化時間
+        const now = new Date();
+        const defaultDatetime = now.toISOString().slice(0, 16);
+        globalDateTime.value = defaultDatetime;
+
+        // 預設橙色
+        fontColorInput.value = "#ff9800";
+        fontColorPreset.value = "#ff9800";
+
+        // 初始化透明度顯示
+        textOpacityInput.addEventListener('input', () => {
+            opacityValue.textContent = `${Math.round(textOpacityInput.value * 100)}%`;
+        });
+
+        // 更新統計數據
+        function updateStats() {
+            imageCountEl.textContent = imageStore.length;
+            processedCountEl.textContent = imageStore.filter(item => item.canvas).length;
+            
+            // 計算總大小 (估計)
+            const totalSizeMB = (imageStore.reduce((acc, item) => {
+                return acc + (item.originImg.width * item.originImg.height * 0.000003);
+            }, 0)).toFixed(1);
+            totalSizeEl.textContent = `${totalSizeMB}MB`;
+            
+            // 估計處理時間
+            const estimatedSeconds = Math.max(2, imageStore.length * 0.5);
+            estimatedTimeEl.textContent = `${estimatedSeconds}s`;
+        }
+
+        // 顯示進度條
+        function showProgress(progress, text) {
+            processingProgress.style.display = 'flex';
+            progressFill.style.width = `${progress}%`;
+            progressText.textContent = getTranslation(text) || text;
+        }
+
+        // 隱藏進度條
+        function hideProgress() {
+            processingProgress.style.display = 'none';
+        }
+
+        // 語言切換功能
+        function switchLanguage(lang) {
+            currentLanguage = lang;
+            
+            // 更新按鈕狀態
+            langButtons.forEach(btn => {
+                if (btn.dataset.lang === lang) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            // 更新頁面文字
+            document.querySelectorAll('[data-i18n]').forEach(element => {
+                const key = element.getAttribute('data-i18n');
+                const translation = translations[lang][key];
+                if (translation) {
+                    if (element.tagName === 'INPUT' && element.type === 'button') {
+                        element.value = translation;
+                    } else if (element.tagName === 'INPUT' && (element.type === 'text' || element.type === 'submit')) {
+                        element.value = translation;
+                    } else if (element.tagName === 'TEXTAREA') {
+                        element.textContent = translation;
+                    } else {
+                        element.textContent = translation;
+                    }
+                }
+            });
+            
+            // 更新HTML lang屬性
+            document.documentElement.lang = lang;
+        }
+
+        // 獲取翻譯
+        function getTranslation(key) {
+            return translations[currentLanguage][key];
+        }
+
+        // 初始化語言
+        switchLanguage('zh-TW');
+
+        // 語言按鈕事件
+        langButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                switchLanguage(btn.dataset.lang);
+            });
+        });
+
+        // 時間來源選擇
+        exifOption.addEventListener('click', () => {
+            timeSource = 'exif';
+            exifOption.classList.add('active');
+            customOption.classList.remove('active');
+            useExifRadio.checked = true;
+            customTimeContainer.style.display = 'none';
+            exifNote.style.display = 'block';
+            
+            // 更新現有圖片的時間來源
+            imageStore.forEach(item => {
+                item.timeSource = 'exif';
+                if (item.exifTime) {
+                    item.customTime = item.exifTime;
+                    drawWatermark(item);
+                }
+            });
+        });
+
+        customOption.addEventListener('click', () => {
+            timeSource = 'custom';
+            customOption.classList.add('active');
+            exifOption.classList.remove('active');
+            useCustomRadio.checked = true;
+            customTimeContainer.style.display = 'block';
+            exifNote.style.display = 'none';
+            
+            // 更新現有圖片的時間來源
+            imageStore.forEach(item => {
+                item.timeSource = 'custom';
+                item.customTime = new Date(globalDateTime.value);
+                drawWatermark(item);
+            });
+        });
+
+        // 全局時間變更時更新
+        globalDateTime.addEventListener('change', () => {
+            if (timeSource === 'custom') {
+                imageStore.forEach(item => {
+                    item.customTime = new Date(globalDateTime.value);
+                    drawWatermark(item);
+                });
+            }
+        });
+
+        // 顏色聯動
+        fontColorPreset.addEventListener('change', () => {
+            const val = fontColorPreset.value;
+            if(val !== 'custom') {
+                fontColorInput.value = val;
+                applyGlobalBtn.click();
+            }
+        });
+
+        fontColorInput.addEventListener('input', () => {
+            fontColorPreset.value = 'custom';
+        });
+
+        // 點擊關閉全屏預覽
+        fullPreview.addEventListener('click', () => {
+            fullPreview.style.display = 'none';
+        });
+
+        // 上傳交互
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.style.background = '#eff6ff';
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.style.background = '#ffffff';
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.style.background = '#ffffff';
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFiles(fileInput.files);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            handleFiles(fileInput.files);
+        });
+
+        // 從EXIF讀取拍攝時間
+        function extractExifTime(file) {
+            return new Promise((resolve) => {
+                EXIF.getData(file, function() {
+                    const exifDate = EXIF.getTag(this, "DateTimeOriginal");
+                    if (exifDate) {
+                        // EXIF格式: "YYYY:MM:DD HH:MM:SS"
+                        const [date, time] = exifDate.split(' ');
+                        const [year, month, day] = date.split(':');
+                        const [hour, minute, second] = time.split(':');
+                        const exifDateTime = new Date(
+                            parseInt(year), 
+                            parseInt(month) - 1, 
+                            parseInt(day), 
+                            parseInt(hour), 
+                            parseInt(minute), 
+                            parseInt(second)
+                        );
+                        
+                        // 驗證日期有效性
+                        if (!isNaN(exifDateTime.getTime())) {
+                            resolve(exifDateTime);
+                        } else {
+                            resolve(null);
+                        }
+                    } else {
+                        resolve(null);
+                    }
+                });
+            });
+        }
+
+        // 處理上傳文件
+        async function handleFiles(files) {
+            const imgFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+            
+            if (imgFiles.length === 0) return;
+            
+            showProgress(0, 'processing');
+            
+            // 分批處理避免阻塞
+            const batchSize = 5;
+            for (let i = 0; i < imgFiles.length; i += batchSize) {
+                const batch = imgFiles.slice(i, i + batchSize);
+                
+                // 更新進度
+                showProgress((i / imgFiles.length) * 100, 'processing');
+                
+                // 批次處理
+                await Promise.all(batch.map(async (file, idx) => {
+                    try {
+                        // 讀取EXIF時間
+                        const exifTime = await extractExifTime(file);
+                        
+                        const reader = new FileReader();
+                        return new Promise((resolve) => {
+                            reader.onload = async (e) => {
+                                const img = new Image();
+                                img.onload = () => {
+                                    // 根據時間來源決定使用哪個時間
+                                    let customTime;
+                                    if (timeSource === 'exif' && exifTime) {
+                                        customTime = exifTime;
+                                    } else {
+                                        customTime = new Date(globalDateTime.value);
+                                    }
+                                    
+                                    const item = {
+                                        originImg: img,
+                                        originDataUrl: e.target.result,
+                                        fileName: file.name,
+                                        customTime: customTime,
+                                        exifTime: exifTime, // 保存EXIF時間供顯示
+                                        timeSource: timeSource, // 記錄時間來源
+                                        format: timeFormatSelect.value,
+                                        fontFamily: fontFamilySelect.value,
+                                        fontStyle: fontStyleSelect.value,
+                                        baseFontSize: Number(fontSizeInput.value),
+                                        fontColor: fontColorInput.value,
+                                        opacity: textOpacityInput.value,
+                                        canvas: null,
+                                        index: imageStore.length,
+                                        originalOrder: imageStore.length,
+                                        uploadTime: new Date(),
+                                        fileSize: file.size
+                                    };
+                                    imageStore.push(item);
+                                    renderImageCard(item);
+                                    drawWatermark(item);
+                                    updateStats();
+                                    resolve();
+                                };
+                                img.src = e.target.result;
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                    } catch (error) {
+                        console.error('Error processing image:', error);
+                    }
+                }));
+            }
+            
+            hideProgress();
+            updateStats();
+        }
+
+        // 渲染圖片卡片
+        function renderImageCard(item) {
+            const card = document.createElement('div');
+            card.className = 'img-card';
+            card.dataset.index = item.index;
+
+            const formattedTime = formatDateTime(item.customTime, 'YYYY-MM-DD HH:mm:ss');
+            const exifTimeStr = item.exifTime ? formatDateTime(item.exifTime, 'YYYY-MM-DD HH:mm:ss') : getTranslation('noExifData');
+            const timeSourceLabel = item.timeSource === 'exif' ? getTranslation('usingExif') : getTranslation('usingCustom');
+            const timeSourceClass = item.timeSource === 'exif' ? 'exif-badge' : 'time-badge';
+            
+            card.innerHTML = `
+                <div class="del-btn" data-index="${item.index}">×</div>
+                <div class="card-header">
+                    <div class="card-title">${item.fileName}</div>
+                    <div class="${timeSourceClass}">${timeSourceLabel}</div>
+                </div>
+                <canvas class="preview-canvas"></canvas>
+                <div class="card-controls">
+                    <label>${getTranslation('localDateTime')}</label>
+                    <input type="datetime-local" class="local-datetime" 
+                           value="${item.customTime.toISOString().slice(0,16)}">
+                    <div class="time-info">${getTranslation('dateLabel')}: ${formattedTime}</div>
+                    ${item.exifTime ? `<div class="exif-time">${getTranslation('originalExifTime')}: ${exifTimeStr}</div>` : ''}
+                    <div class="btn-group">
+                        <button class="apply-local btn-primary">${getTranslation('applyToThisImage')}</button>
+                        <button class="download-single btn-primary">${getTranslation('downloadThisImage')}</button>
+                    </div>
+                </div>
+            `;
+            previewWrapper.appendChild(card);
+            item.canvas = card.querySelector('.preview-canvas');
+
+            const canvasEl = item.canvas;
+            const localDtInput = card.querySelector('.local-datetime');
+            const applyLocalBtn = card.querySelector('.apply-local');
+            const downloadSingleBtn = card.querySelector('.download-single');
+            const delBtn = card.querySelector('.del-btn');
+
+            // 點擊預覽圖全屏
+            canvasEl.addEventListener('click', () => {
+                fullImg.src = canvasEl.toDataURL('image/jpeg', 0.95);
+                fullPreview.style.display = 'flex';
+            });
+
+            // 單張刪除
+            delBtn.addEventListener('click', () => {
+                const idx = Number(delBtn.dataset.index);
+                if (!confirm(getTranslation('confirmDelete'))) return;
+                imageStore.splice(idx, 1);
+                previewWrapper.innerHTML = '';
+                imageStore.forEach((it, i) => {
+                    it.index = i;
+                    renderImageCard(it);
+                    drawWatermark(it);
+                });
+                updateStats();
+            });
+
+            // 套用單張設定
+            applyLocalBtn.addEventListener('click', () => {
+                item.customTime = new Date(localDtInput.value);
+                item.timeSource = 'custom'; // 改為自訂時間
+                const timeInfo = card.querySelector('.time-info');
+                const timeSourceBadge = card.querySelector(`.${item.timeSource === 'exif' ? 'exif-badge' : 'time-badge'}`);
+                timeInfo.textContent = `${getTranslation('dateLabel')}: ${formatDateTime(item.customTime, 'YYYY-MM-DD HH:mm:ss')}`;
+                if (timeSourceBadge) {
+                    timeSourceBadge.textContent = getTranslation('usingCustom');
+                    timeSourceBadge.className = 'time-badge';
+                }
+                drawWatermark(item);
+                updateStats();
+            });
+
+            // 單張下載
+            downloadSingleBtn.addEventListener('click', () => {
+                const link = document.createElement('a');
+                const timeStr = formatDateTime(item.customTime, 'YYYYMMDD_HHmmss');
+                link.download = `PHOTO_${timeStr}.jpg`;
+                link.href = item.canvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+            });
+        }
+
+        // 水印繪製 - 改進的字體大小計算
+        function drawWatermark(item) {
+            const canvas = item.canvas;
+            const ctx = canvas.getContext('2d');
+            const img = item.originImg;
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+
+            // 改進的字體大小計算：根據照片解析度和數碼相片標準調整
+            // 數碼相片常見解析度參考值
+            const baseResolution = 1200; // 基礎參考解析度
+            const megapixels = (img.width * img.height) / 1000000; // 計算百萬像素
+            
+            // 根據百萬像素調整基礎大小
+            let sizeMultiplier = 1;
+            if (megapixels < 2) sizeMultiplier = 0.8; // 低解析度
+            else if (megapixels < 5) sizeMultiplier = 1.0; // 標準解析度
+            else if (megapixels < 12) sizeMultiplier = 1.2; // 中等解析度
+            else if (megapixels < 24) sizeMultiplier = 1.4; // 高解析度
+            else sizeMultiplier = 1.6; // 超高解析度
+            
+            // 根據圖片寬度比例計算
+            const widthScale = canvas.width / baseResolution;
+            
+            // 根據圖片對角線長度調整（更接近數碼相格效果）
+            const diagonal = Math.sqrt(canvas.width * canvas.width + canvas.height * canvas.height);
+            const baseDiagonal = Math.sqrt(baseResolution * baseResolution + baseResolution * baseResolution);
+            const diagonalScale = diagonal / baseDiagonal;
+            
+            // 綜合計算最終字體大小
+            const adaptiveSize = Math.max(
+                12, 
+                Math.min(
+                    item.baseFontSize * widthScale * diagonalScale * sizeMultiplier,
+                    100 // 最大限制
+                )
+            );
+            
+            const fontStr = `${item.fontStyle} ${adaptiveSize.toFixed(1)}px ${item.fontFamily}`;
+            
+            ctx.font = fontStr;
+            ctx.fillStyle = hexToRgba(item.fontColor, item.opacity);
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+
+            const timeText = formatDateTime(item.customTime, item.format);
+            const padding = adaptiveSize * 0.8; // 根據字體大小動態調整內邊距
+            ctx.fillText(timeText, canvas.width - padding, canvas.height - padding);
+        }
+
+        // 時間格式化
+        function formatDateTime(date, fmt) {
+            const Y = date.getFullYear();
+            const M = (date.getMonth() + 1).toString().padStart(2, '0');
+            const D = date.getDate().toString().padStart(2, '0');
+            const H = date.getHours().toString().padStart(2, '0');
+            const Mi = date.getMinutes().toString().padStart(2, '0');
+            const S = date.getSeconds().toString().padStart(2, '0');
+
+            return fmt
+                .replace(/YYYY/g, Y)
+                .replace(/MM/g, M)
+                .replace(/DD/g, D)
+                .replace(/HH/g, H)
+                .replace(/mm/g, Mi)
+                .replace(/ss/g, S);
+        }
+
+        // 色值轉RGBA
+        function hexToRgba(hex, opacity) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r},${g},${b},${opacity})`;
+        }
+
+        // 套用全局設定
+        applyGlobalBtn.addEventListener('click', () => {
+            const gFormat = timeFormatSelect.value;
+            const gFont = fontFamilySelect.value;
+            const gStyle = fontStyleSelect.value;
+            const gBaseSize = Number(fontSizeInput.value);
+            const gColor = fontColorInput.value;
+            const gOpacity = textOpacityInput.value;
+
+            imageStore.forEach(item => {
+                // 根據時間來源更新時間
+                if (timeSource === 'exif' && item.exifTime) {
+                    item.customTime = item.exifTime;
+                } else {
+                    item.customTime = new Date(globalDateTime.value);
+                }
+                
+                item.timeSource = timeSource;
+                item.format = gFormat;
+                item.fontFamily = gFont;
+                item.fontStyle = gStyle;
+                item.baseFontSize = gBaseSize;
+                item.fontColor = gColor;
+                item.opacity = gOpacity;
+                drawWatermark(item);
+                
+                // 更新卡片上的時間顯示
+                const card = document.querySelector(`.img-card[data-index="${item.index}"]`);
+                if (card) {
+                    const localDtInput = card.querySelector('.local-datetime');
+                    const timeInfo = card.querySelector('.time-info');
+                    const timeSourceBadge = card.querySelector('.card-header .time-badge, .card-header .exif-badge');
+                    
+                    if (localDtInput) localDtInput.value = item.customTime.toISOString().slice(0,16);
+                    if (timeInfo) timeInfo.textContent = `${getTranslation('dateLabel')}: ${formatDateTime(item.customTime, 'YYYY-MM-DD HH:mm:ss')}`;
+                    if (timeSourceBadge) {
+                        timeSourceBadge.textContent = item.timeSource === 'exif' ? getTranslation('usingExif') : getTranslation('usingCustom');
+                        timeSourceBadge.className = item.timeSource === 'exif' ? 'exif-badge' : 'time-badge';
+                    }
+                }
+            });
+            updateStats();
+        });
+
+        // 排序功能：按時間升序
+        sortAscBtn.addEventListener('click', () => {
+            if (imageStore.length === 0) {
+                alert(getTranslation('noImages'));
+                return;
+            }
+            
+            imageStore.sort((a, b) => a.customTime.getTime() - b.customTime.getTime());
+            
+            previewWrapper.innerHTML = '';
+            imageStore.forEach((item, index) => {
+                item.index = index;
+                renderImageCard(item);
+                drawWatermark(item);
+            });
+            
+            alert(getTranslation('sortedAsc'));
+        });
+
+        // 排序功能：按時間降序
+        sortDescBtn.addEventListener('click', () => {
+            if (imageStore.length === 0) {
+                alert(getTranslation('noImages'));
+                return;
+            }
+            
+            imageStore.sort((a, b) => b.customTime.getTime() - a.customTime.getTime());
+            
+            previewWrapper.innerHTML = '';
+            imageStore.forEach((item, index) => {
+                item.index = index;
+                renderImageCard(item);
+                drawWatermark(item);
+            });
+            
+            alert(getTranslation('sortedDesc'));
+        });
+
+        // 批量下載
+        batchDownloadBtn.addEventListener('click', async () => {
+            if (imageStore.length === 0) {
+                alert(getTranslation('noImages'));
+                return;
+            }
+            
+            const isSorted = confirm(getTranslation('sortConfirm'));
+            if (!isSorted) return;
+            
+            showProgress(0, 'processing');
+            
+            try {
+                zip = new JSZip();
+                const sortedForDownload = [...imageStore].sort((a, b) => a.customTime.getTime() - b.customTime.getTime());
+                
+                // 批次處理，避免同時處理太多圖片
+                const batchSize = 3;
+                const totalBatches = Math.ceil(sortedForDownload.length / batchSize);
+                
+                for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+                    const start = batchIndex * batchSize;
+                    const end = Math.min(start + batchSize, sortedForDownload.length);
+                    const batch = sortedForDownload.slice(start, end);
+                    
+                    // 處理當前批次
+                    await Promise.all(batch.map(async (item, indexInBatch) => {
+                        const globalIndex = start + indexInBatch;
+                        const timeStr = formatDateTime(item.customTime, 'YYYYMMDD_HHmmss');
+                        const seq = (globalIndex + 1).toString().padStart(3, '0');
+                        const fname = `PHOTO_${seq}_${timeStr}.jpg`;
+                        
+                        // 將canvas轉換為Blob
+                        const blob = await canvasToBlob(item.canvas);
+                        zip.file(fname, blob);
+                    }));
+                    
+                    // 更新進度
+                    const progress = ((batchIndex + 1) / totalBatches) * 100;
+                    showProgress(progress, 'processing');
+                }
+                
+                // 生成ZIP並下載
+                const content = await zip.generateAsync({ type: 'blob' });
+                saveAs(content, `相片水印_按時間排序_${new Date().getTime()}.zip`);
+                hideProgress();
+                
+            } catch (error) {
+                console.error('批量下載錯誤:', error);
+                alert('批量下載時發生錯誤，請稍後再試');
+                hideProgress();
+            }
+        });
+
+        // 將canvas轉換為Blob的輔助函數
+        function canvasToBlob(canvas) {
+            return new Promise((resolve, reject) => {
+                try {
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            resolve(blob);
+                        } else {
+                            reject(new Error('無法轉換canvas為blob'));
+                        }
+                    }, 'image/jpeg', 0.95);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        // 清空全部
+        clearAllBtn.addEventListener('click', () => {
+            if (!confirm(getTranslation('confirmClear'))) return;
+            imageStore.length = 0;
+            previewWrapper.innerHTML = '';
+            fileInput.value = '';
+            updateStats();
+        });
+
+        // 初始化統計
+        updateStats();
+    </script>
+
+<script>
+const SUPABASE_URL = 'https://hyzbeqahboqwgdrlsmxp.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5emJlcWFoYm9xd2dkcmxzbXhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjMwOTgsImV4cCI6MjA5MTgzOTA5OH0.S-9geDeM2H1chfIH8fWpDef4SZQseuk7S4eOugEzwFM';
+
+let supabase = null;
+let currentUser = null;
+
+function initSupabase() {
+    try {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log('Supabase initialized');
+    } catch (e) {
+        console.error('Init error:', e);
+        document.getElementById('auth-error').textContent = '系統初始化失敗';
+        document.getElementById('auth-error').style.display = 'block';
+    }
+}
+
+async function checkAuthState() {
+    if (!supabase) initSupabase();
+    if (!supabase) return;
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    const overlay = document.getElementById('auth-overlay');
+    const userInfo = document.getElementById('user-info');
+    const logoutBtn = document.getElementById('logout-btn');
+    const container = document.querySelector('.container');
+    
+    if (session && session.user) {
+        currentUser = session.user;
+        overlay.classList.add('hidden');
+        userInfo.textContent = '👤 ' + (currentUser.email || 'User');
+        userInfo.style.display = 'block';
+        logoutBtn.style.display = 'block';
+        if (container) container.style.display = 'flex';
+    } else {
+        overlay.classList.remove('hidden');
+        userInfo.style.display = 'none';
+        logoutBtn.style.display = 'none';
+        if (container) container.style.display = 'none';
+    }
+}
+
+async function authLogin() {
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    const errorEl = document.getElementById('auth-error');
+    
+    if (!email || !password) {
+        errorEl.textContent = '請填寫電子郵件和密碼';
+        errorEl.style.display = 'block';
+        return;
+    }
+    
+    document.getElementById('auth-login-form').style.display = 'none';
+    document.getElementById('auth-loading').style.display = 'block';
+    
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    if (error) {
+        errorEl.textContent = error.message;
+        errorEl.style.display = 'block';
+        document.getElementById('auth-login-form').style.display = 'block';
+        document.getElementById('auth-loading').style.display = 'none';
+    } else {
+        checkAuthState();
+    }
+}
+
+async function authSignup() {
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+    const errorEl = document.getElementById('auth-error');
+    
+    if (!email || !password) {
+        errorEl.textContent = '請填寫電子郵件和密碼';
+        errorEl.style.display = 'block';
+        return;
+    }
+    
+    if (password.length < 6) {
+        errorEl.textContent = '密碼至少需要 6 個字符';
+        errorEl.style.display = 'block';
+        return;
+    }
+    
+    document.getElementById('auth-login-form').style.display = 'none';
+    document.getElementById('auth-loading').style.display = 'block';
+    
+    const { error } = await supabase.auth.signUp({ email, password });
+    
+    if (error) {
+        errorEl.textContent = error.message;
+        errorEl.style.display = 'block';
+        document.getElementById('auth-login-form').style.display = 'block';
+        document.getElementById('auth-loading').style.display = 'none';
+    } else {
+        alert('註冊成功！請到電子郵件確認你的帳戶。');
+        document.getElementById('auth-login-form').style.display = 'block';
+        document.getElementById('auth-loading').style.display = 'none';
+    }
+}
+
+async function authGoogleLogin() {
+    const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.href }
+    });
+    if (error) {
+        document.getElementById('auth-error').textContent = error.message;
+        document.getElementById('auth-error').style.display = 'block';
+    }
+}
+
+async function authLogout() {
+    await supabase.auth.signOut();
+    checkAuthState();
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(checkAuthState, 100);
+});
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(checkAuthState, 100);
+}
+
+// Listen for auth changes
+supabase && supabase.auth.onAuthStateChange((event, session) => {
+    checkAuthState();
+});
+</script>
+
+</body>
+
+<!-- Cloudflare Web Analytics -->
+<script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "55844cc74cf24c56819ab0e3822a9a2a"}'></script>
+<!-- End Cloudflare Web Analytics -->
+
+</html>
