@@ -1770,6 +1770,17 @@ async function checkAuthState() {
 }
 
 async function authLogin() {
+    // 確保 Supabase 已初始化
+    if (!supabase) {
+        initSupabase();
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    if (!supabase) {
+        document.getElementById('auth-error').textContent = '系統載入中，請稍後再試';
+        document.getElementById('auth-error').style.display = 'block';
+        return;
+    }
+    
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
     const errorEl = document.getElementById('auth-error');
@@ -1796,6 +1807,17 @@ async function authLogin() {
 }
 
 async function authSignup() {
+    // 確保 Supabase 已初始化
+    if (!supabase) {
+        initSupabase();
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    if (!supabase) {
+        document.getElementById('auth-error').textContent = '系統載入中，請稍後再試';
+        document.getElementById('auth-error').style.display = 'block';
+        return;
+    }
+    
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
     const errorEl = document.getElementById('auth-error');
@@ -1830,6 +1852,17 @@ async function authSignup() {
 }
 
 async function authGoogleLogin() {
+    // 確保 Supabase 已初始化
+    if (!supabase) {
+        initSupabase();
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    if (!supabase) {
+        document.getElementById('auth-error').textContent = '系統載入中，請稍後再試';
+        document.getElementById('auth-error').style.display = 'block';
+        return;
+    }
+    
     const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.href }
@@ -1841,6 +1874,12 @@ async function authGoogleLogin() {
 }
 
 async function authLogout() {
+    if (!supabase) {
+        initSupabase();
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    if (!supabase) return;
+    
     await supabase.auth.signOut();
     checkAuthState();
 }
