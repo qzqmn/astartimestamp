@@ -79,6 +79,7 @@
             box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
             position: relative;
             overflow: hidden;
+            transition: all 0.3s ease;
         }
 
         .upload-area:hover {
@@ -88,10 +89,37 @@
             transform: translateY(-2px);
         }
 
+        .upload-area.drag-over {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            border-style: solid;
+            transform: scale(1.02);
+        }
+
+        .upload-area.error {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+
         .upload-area p {
             font-size: 16px;
             color: #475569;
             font-weight: 500;
+        }
+
+        .upload-limit {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 8px;
+        }
+
+        .upload-limit.warning {
+            color: #f59e0b;
+        }
+
+        .upload-limit.error {
+            color: #ef4444;
+            font-weight: 600;
         }
 
         #fileInput {
@@ -753,7 +781,8 @@
         </div>
 
         <div class="upload-area" id="uploadArea">
-            <p data-i18n="uploadHint">點擊 / 拖拽相片至此上傳（支持多圖批量）</p>
+            <p data-i18n="uploadHint">點擊 / 拖拽相片至此上傳</p>
+            <p class="upload-limit" id="uploadLimit">支援 JPG, PNG, WEBP | 每張最大 20MB | 最多 60 張/次</p>
             <input type="file" id="fileInput" accept="image/*" multiple>
         </div>
 
@@ -1166,14 +1195,14 @@
         uploadArea.addEventListener('click', () => fileInput.click());
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadArea.style.background = '#eff6ff';
+            uploadArea.classList.add('drag-over');
         });
         uploadArea.addEventListener('dragleave', () => {
-            uploadArea.style.background = '#ffffff';
+            uploadArea.classList.remove('drag-over');
         });
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
-            uploadArea.style.background = '#ffffff';
+            uploadArea.classList.remove('drag-over');
             if (e.dataTransfer.files.length) {
                 fileInput.files = e.dataTransfer.files;
                 handleFiles(fileInput.files);
@@ -1218,19 +1247,56 @@
 
         // 處理上傳文件
         async function handleFiles(files) {
+            const MAX_FILES = 60;
+            const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+            const SUPPORTED_FORMATS = ['image/jpeg', 'image/png', 'image/webp'];
+            
             const imgFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
             
-            if (imgFiles.length === 0) return;
+            if (imgFiles.length === 0) {
+                showUploadError('不支援的格式，請上傳 JPG/PNG/WEBP');
+                return;
+            }
+            
+            // 檢查批量限制
+            if (imageStore.length + imgFiles.length > MAX_FILES) {
+                const remaining = MAX_FILES - imageStore.length;
+                if (remaining <= 0) {
+                    showUploadError(`已達到批量上限 60 張，請先處理現有圖片後再上傳`);
+                    return;
+                }
+                showUploadError(`一次最多上傳 60 張，你還可以上傳 ${remaining} 張`);
+                return;
+            }
+            
+            // 檢查檔案大小
+            const oversizedFiles = imgFiles.filter(f => f.size > MAX_FILE_SIZE);
+            if (oversizedFiles.length > 0) {
+                const names = oversizedFiles.slice(0, 3).map(f => f.name).join(', ');
+                showUploadError(`這些檔案超過 20MB 限制: ${oversizedFiles.length > 3 ? names + '...' : names}`);
+                return;
+            }
+            
+            // 檢查格式
+            const unsupportedFiles = imgFiles.filter(f => !SUPPORTED_FORMATS.includes(f.type));
+            if (unsupportedFiles.length > 0) {
+                const names = unsupportedFiles.slice(0, 3).map(f => f.name).join(', ');
+                showUploadError(`不支援的格式: ${unsupportedFiles.length > 3 ? names + '...' : names}`);
+                return;
+            }
             
             showProgress(0, 'processing');
             
             // 分批處理避免阻塞
             const batchSize = 5;
+            let processedCount = 0;
+            const totalToProcess = imgFiles.length;
+            
             for (let i = 0; i < imgFiles.length; i += batchSize) {
                 const batch = imgFiles.slice(i, i + batchSize);
                 
                 // 更新進度
-                showProgress((i / imgFiles.length) * 100, 'processing');
+                showProgress((processedCount / totalToProcess) * 100, 'processing');
                 
                 // 批次處理
                 await Promise.all(batch.map(async (file, idx) => {
@@ -1274,20 +1340,60 @@
                                     renderImageCard(item);
                                     drawWatermark(item);
                                     updateStats();
+                                    processedCount++;
+                                    resolve();
+                                };
+                                img.onerror = () => {
+                                    console.error('圖片載入失敗:', file.name);
+                                    processedCount++;
                                     resolve();
                                 };
                                 img.src = e.target.result;
+                            };
+                            reader.onerror = () => {
+                                console.error('檔案讀取失敗:', file.name);
+                                processedCount++;
+                                resolve();
                             };
                             reader.readAsDataURL(file);
                         });
                     } catch (error) {
                         console.error('Error processing image:', error);
+                        processedCount++;
                     }
                 }));
             }
             
             hideProgress();
             updateStats();
+            updateUploadLimitText();
+        }
+        
+        // 顯示上傳錯誤
+        function showUploadError(message) {
+            const limitEl = document.getElementById('uploadLimit');
+            limitEl.textContent = '⚠️ ' + message;
+            limitEl.className = 'upload-limit error';
+            uploadArea.classList.add('error');
+            
+            setTimeout(() => {
+                limitEl.textContent = '支援 JPG, PNG, WEBP | 每張最大 20MB | 最多 60 張/次';
+                limitEl.className = 'upload-limit';
+                uploadArea.classList.remove('error');
+            }, 4000);
+        }
+        
+        // 更新上傳限制文字
+        function updateUploadLimitText() {
+            const limitEl = document.getElementById('uploadLimit');
+            const remaining = 60 - imageStore.length;
+            if (remaining <= 10) {
+                limitEl.textContent = `還可以上傳 ${remaining} 張`;
+                limitEl.className = 'upload-limit warning';
+            } else {
+                limitEl.textContent = '支援 JPG, PNG, WEBP | 每張最大 20MB | 最多 60 張/次';
+                limitEl.className = 'upload-limit';
+            }
         }
 
         // 渲染圖片卡片
