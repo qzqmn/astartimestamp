@@ -1770,17 +1770,6 @@ async function checkAuthState() {
 }
 
 async function authLogin() {
-    // 確保 Supabase 已初始化
-    if (!supabase) {
-        initSupabase();
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    if (!supabase) {
-        document.getElementById('auth-error').textContent = '系統載入中，請稍後再試';
-        document.getElementById('auth-error').style.display = 'block';
-        return;
-    }
-    
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
     const errorEl = document.getElementById('auth-error');
@@ -1788,6 +1777,23 @@ async function authLogin() {
     if (!email || !password) {
         errorEl.textContent = '請填寫電子郵件和密碼';
         errorEl.style.display = 'block';
+        return;
+    }
+    
+    // 確保 Supabase 已初始化
+    let attempts = 0;
+    while (!supabase && attempts < 3) {
+        console.log('Supabase not ready, waiting...', attempts);
+        initSupabase();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
+    }
+    
+    if (!supabase) {
+        errorEl.textContent = '系統載入失敗，請刷新頁面後再試';
+        errorEl.style.display = 'block';
+        document.getElementById('auth-login-form').style.display = 'block';
+        document.getElementById('auth-loading').style.display = 'none';
         return;
     }
     
@@ -1807,17 +1813,6 @@ async function authLogin() {
 }
 
 async function authSignup() {
-    // 確保 Supabase 已初始化
-    if (!supabase) {
-        initSupabase();
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    if (!supabase) {
-        document.getElementById('auth-error').textContent = '系統載入中，請稍後再試';
-        document.getElementById('auth-error').style.display = 'block';
-        return;
-    }
-    
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
     const errorEl = document.getElementById('auth-error');
@@ -1831,6 +1826,23 @@ async function authSignup() {
     if (password.length < 6) {
         errorEl.textContent = '密碼至少需要 6 個字符';
         errorEl.style.display = 'block';
+        return;
+    }
+    
+    // 確保 Supabase 已初始化
+    let attempts = 0;
+    while (!supabase && attempts < 3) {
+        console.log('Supabase not ready, waiting...', attempts);
+        initSupabase();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
+    }
+    
+    if (!supabase) {
+        errorEl.textContent = '系統載入失敗，請刷新頁面後再試';
+        errorEl.style.display = 'block';
+        document.getElementById('auth-login-form').style.display = 'block';
+        document.getElementById('auth-loading').style.display = 'none';
         return;
     }
     
@@ -1853,12 +1865,16 @@ async function authSignup() {
 
 async function authGoogleLogin() {
     // 確保 Supabase 已初始化
-    if (!supabase) {
+    let attempts = 0;
+    while (!supabase && attempts < 3) {
+        console.log('Supabase not ready, waiting...', attempts);
         initSupabase();
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
     }
+    
     if (!supabase) {
-        document.getElementById('auth-error').textContent = '系統載入中，請稍後再試';
+        document.getElementById('auth-error').textContent = '系統載入失敗，請刷新頁面後再試';
         document.getElementById('auth-error').style.display = 'block';
         return;
     }
@@ -1876,7 +1892,7 @@ async function authGoogleLogin() {
 async function authLogout() {
     if (!supabase) {
         initSupabase();
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
     }
     if (!supabase) return;
     
